@@ -11,8 +11,8 @@ our $FileDescription="envy - Environment Variable manager";
 our $LegalCopyright="All rights Reserverd, Steven Lloyd";
 #perl2exe_info OriginalFilename=envy.exe
 our $OriginalFilename="envy.exe";
-#perl2exe_info ProductVersion=1.625.14
-our $ProductVersion="1.625.14";
+#perl2exe_info ProductVersion=1.670.56
+our $ProductVersion="1.670.56";
 #perl2exe_info FileVersion=1.1502.10
 our $FileVersion="1.1502.10";
 #perl2exe_info LegalCopyright=Copyright 2005, Steven Lloyd
@@ -34,7 +34,7 @@ my $group='system';
 my $action='add';
 my $key='';
 my $val='';
-my $index=0;
+my $index=-1;
 foreach $arg (@ARGV){
 	if($arg=~/^(\/s|\-\-system)$/i){$group='system';}
 	elsif($arg=~/^(\/u|\-\-user)$/i){$group='user';}
@@ -60,14 +60,35 @@ foreach $arg (@ARGV){
 		$action='delete';
 	}
 	elsif(length($key)==0){
-    	$key=uc($arg);
+    	$key=$arg;
 	}
 	elsif(length($val)==0){
     	$val=$arg;
 	}
 }
 if(!length($val)){$action='list';}
-print "Group:$group, Action:$action, Key:$key, Val:$val, Index:$index Args: @ARGV\n";
+#fix key case
+if(length($key)){
+	if($group eq 'user'){
+		my @ckeys=ListEnv(ENV_USER);
+		foreach my $ckey (@ckeys){
+			if(uc($key) eq uc($ckey)){
+				$key=$ckey;
+				last;
+			}
+		}
+	}
+	else{
+		my @ckeys=ListEnv(ENV_SYSTEM);
+		foreach my $ckey (@ckeys){
+        	if(uc($key) eq uc($ckey)){
+				$key=$ckey;
+				last;
+			}
+		}
+	}
+}
+print "$action $group var '$key' value '$val' completed\n\n";
 if($action eq 'list'){
 	if(length($key)){showEnv($group,$key);}
 	else{showEnvs($group);}
@@ -85,7 +106,7 @@ sub addRemoveEnvValue{
 	my $key=shift;
 	my $val=shift;
 	my $index=shift;
-	my $add=shift || 1;
+	my $add=shift;
 	my $cval='';
 	if($group eq 'user'){
 		$cval=GetEnv(ENV_USER, $key);
@@ -104,7 +125,11 @@ sub addRemoveEnvValue{
 		$found{$parts[$i]}=1;
 	}
 	#add the value back in at index if add is 1
-	if($add==1){splice @newparts, $index, 0, $val;}
+	if($add==1){
+		$cnt=@newparts;
+		if($index < 0 || $index > $cnt){$index=$cnt;}
+		splice @newparts, $index, 0, $val;
+	}
 	my $newval=join(';',@newparts);
 	if($group eq 'user'){
 		DelEnv(ENV_USER, $key);
@@ -117,14 +142,7 @@ sub addRemoveEnvValue{
 		$cval=GetEnv(ENV_SYSTEM, $key);
 	}
 	BroadcastEnv();
-	@parts=split(/[\;]+/,strip($cval));
-	$cnt=@parts;
-	for($i=0;$i<$cnt;$i++){
-		next if $parts[$i]=~/^ARRAY\(/ || isArray($parts[$i]);
-		my $n=$i;
-		if(length($n)==1){$n=' '.$n;}
-        print "  $n\. $parts[$i]\n";
-	}
+	showEnv($group,$key);
 }
 ####################
 sub showEnv{
